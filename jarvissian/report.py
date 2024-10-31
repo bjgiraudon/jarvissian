@@ -1,8 +1,7 @@
-import os
 import logging
 import json
-from datetime import datetime
 import threading
+from datetime import datetime
 
 log = logging.getLogger("calrissian.report")
 
@@ -32,7 +31,7 @@ class TimedReport(object):
         delta = self.finish_time - self.start_time
         total_seconds = delta.total_seconds()
         if total_seconds < 0:
-            raise ValueError('Negative time is not allowed: {}'.format(total_seconds))
+            raise ValueError("Negative time is not allowed: {}".format(total_seconds))
         else:
             return total_seconds
 
@@ -45,9 +44,9 @@ class TimedReport(object):
 
     def to_dict(self):
         # Create a dict of our variables, filtering out None
-        result = dict((k,v) for k,v in vars(self).items() if v is not None)
-        result['elapsed_hours'] = self.elapsed_hours()
-        result['elapsed_seconds'] = self.elapsed_seconds()
+        result = dict((k, v) for k, v in vars(self).items() if v is not None)
+        result["elapsed_hours"] = self.elapsed_hours()
+        result["elapsed_seconds"] = self.elapsed_seconds()
         return result
 
 
@@ -55,6 +54,7 @@ class ResourceParser(object):
     """
     Base class for converting Kubernetes resources (memory/CPU) from strings to reportable numbers
     """
+
     kind = None
     url = None
     suffixes = None
@@ -64,37 +64,40 @@ class ResourceParser(object):
         try:
             for suffix, factor in cls.suffixes.items():
                 if value.endswith(suffix):
-                    return float(value.replace(suffix, '')) * factor
+                    return float(value.replace(suffix, "")) * factor
             # No suffix, assume raw number
             return float(value)
         except Exception:
-            raise ValueError('Unable to parse \'{}\' as {}. See {}'.format(value, cls.kind, cls.url))
+            raise ValueError(
+                "Unable to parse '{}' as {}. See {}".format(value, cls.kind, cls.url)
+            )
 
 
 class MemoryParser(ResourceParser):
     """
     Converts Kubernetes memory resource strings (e.g. 1Mi, 1G)to byte quantities
     """
-    kind = 'memory'
-    url = 'https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/#meaning-of-memory'
+
+    kind = "memory"
+    url = "https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/#meaning-of-memory"
     suffixes = {
-        'E': 1e18,
-        'P': 1e15,
-        'T': 1e12,
-        'G': 1e9,
-        'M': 1e6,
-        'K': 1e3,
-        'Ei': 2**60,
-        'Pi': 2**50,
-        'Ti': 2**40,
-        'Gi': 2**30,
-        'Mi': 2**20,
-        'Ki': 2**10,
+        "E": 1e18,
+        "P": 1e15,
+        "T": 1e12,
+        "G": 1e9,
+        "M": 1e6,
+        "K": 1e3,
+        "Ei": 2**60,
+        "Pi": 2**50,
+        "Ti": 2**40,
+        "Gi": 2**30,
+        "Mi": 2**20,
+        "Ki": 2**10,
     }
 
     @classmethod
     def parse_to_megabytes(cls, value):
-        return (cls.parse(value) / cls.suffixes['M'])
+        return cls.parse(value) / cls.suffixes["M"]
 
 
 class CPUParser(ResourceParser):
@@ -102,11 +105,9 @@ class CPUParser(ResourceParser):
     Converts Kubernetes CPU resource strings (e.g. 2, 200m) to floating point CPU quantities.
     """
 
-    kind = 'cpu'
-    url = 'https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/#meaning-of-cpu'
-    suffixes = {
-        'm': 0.001
-    }
+    kind = "cpu"
+    url = "https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/#meaning-of-cpu"
+    suffixes = {"m": 0.001}
 
 
 class TimedResourceReport(TimedReport):
@@ -115,7 +116,10 @@ class TimedResourceReport(TimedReport):
     duration of the timed report. These values, by convention, are the kubernetes **requested**
     resources (not limits or actual).
     """
-    def __init__(self, cpus=0, ram_megabytes=0, disk_megabytes=0, exit_code=0, *args, **kwargs):
+
+    def __init__(
+        self, cpus=0, ram_megabytes=0, disk_megabytes=0, exit_code=0, *args, **kwargs
+    ):
         self.cpus = cpus
         self.ram_megabytes = ram_megabytes
         self.disk_megabytes = disk_megabytes
@@ -138,9 +142,9 @@ class TimedResourceReport(TimedReport):
 
     def to_dict(self):
         result = super(TimedResourceReport, self).to_dict()
-        result['ram_megabyte_hours'] = self.ram_megabyte_hours()
-        result['cpu_hours'] = self.cpu_hours()
-        result['exit_code'] = self.exit_code
+        result["ram_megabyte_hours"] = self.ram_megabyte_hours()
+        result["cpu_hours"] = self.cpu_hours()
+        result["exit_code"] = self.exit_code
         return result
 
     @classmethod
@@ -149,9 +153,15 @@ class TimedResourceReport(TimedReport):
         ram_megabytes = MemoryParser.parse_to_megabytes(completion_result.memory)
         disk_megabytes = MemoryParser.parse_to_megabytes(str(disk_bytes))
 
-        return cls(name=name, start_time=completion_result.start_time, finish_time=completion_result.finish_time, cpus=cpus,
-                   ram_megabytes=ram_megabytes, disk_megabytes=disk_megabytes,
-                   exit_code=completion_result.exit_code)
+        return cls(
+            name=name,
+            start_time=completion_result.start_time,
+            finish_time=completion_result.finish_time,
+            cpus=cpus,
+            ram_megabytes=ram_megabytes,
+            disk_megabytes=disk_megabytes,
+            exit_code=completion_result.exit_code,
+        )
 
 
 class Event(object):
@@ -319,20 +329,26 @@ class TimelineReport(TimedReport):
             events.append(Event.start_event(report))
             events.append(Event.finish_event(report))
         # Sort the events by their time and type, putting finishes ahead of starts when simultaneous.
-        for event in sorted(events, key=lambda x: (x.time, x.type,)):
+        for event in sorted(
+            events,
+            key=lambda x: (
+                x.time,
+                x.type,
+            ),
+        ):
             event.process(processor)
         return processor.result()
 
     def to_dict(self):
         result = super(TimelineReport, self).to_dict()
-        result['total_cpu_hours'] = self.total_cpu_hours()
-        result['total_ram_megabyte_hours'] = self.total_ram_megabyte_hours()
-        result['total_disk_megabytes'] = self.total_disk_megabytes()
-        result['total_tasks'] = self.total_tasks()
-        result['max_parallel_cpus'] = self.max_parallel_cpus()
-        result['max_parallel_ram_megabytes'] = self.max_parallel_ram_megabytes()
-        result['max_parallel_tasks'] = self.max_parallel_tasks()
-        result['children'] = [x.to_dict() for x in self.children]
+        result["total_cpu_hours"] = self.total_cpu_hours()
+        result["total_ram_megabyte_hours"] = self.total_ram_megabyte_hours()
+        result["total_disk_megabytes"] = self.total_disk_megabytes()
+        result["total_tasks"] = self.total_tasks()
+        result["max_parallel_cpus"] = self.max_parallel_cpus()
+        result["max_parallel_ram_megabytes"] = self.max_parallel_ram_megabytes()
+        result["max_parallel_tasks"] = self.max_parallel_tasks()
+        result["children"] = [x.to_dict() for x in self.children]
         return result
 
 
@@ -340,6 +356,7 @@ class Reporter(object):
     """
     Singleton thread-safe reporting class
     """
+
     # Initially None to force initaliziation
     timeline_report = None
     lock = threading.Lock()
@@ -360,7 +377,6 @@ class Reporter(object):
             return Reporter.timeline_report
 
 
-
 def default_serializer(obj):
     """
     Function to handle JSON serialization of objects that cannot be natively serialized
@@ -369,7 +385,7 @@ def default_serializer(obj):
     """
     if isinstance(obj, (datetime)):
         return obj.isoformat()
-    raise TypeError ("Type %s not serializable" % type(obj))
+    raise TypeError("Type %s not serializable" % type(obj))
 
 
 def initialize_reporter(max_ram_mb, max_cores):
@@ -377,5 +393,7 @@ def initialize_reporter(max_ram_mb, max_cores):
 
 
 def write_report(filename):
-    with open(filename, 'w') as f:
-        json.dump(Reporter.get_report().to_dict(), f, indent=4, default=default_serializer)
+    with open(filename, "w") as f:
+        json.dump(
+            Reporter.get_report().to_dict(), f, indent=4, default=default_serializer
+        )

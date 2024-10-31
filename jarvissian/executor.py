@@ -28,9 +28,10 @@ class Resources(object):
     """
     Class to encapsulate compute resources and provide arithmetic operations and comparisons
     """
-    RAM = 'ram'
-    CORES = 'cores'
-    GPUS = 'gpus'
+
+    RAM = "ram"
+    CORES = "cores"
+    GPUS = "gpus"
 
     def __init__(self, ram=0, cores=0, gpus=0):
         self.ram = ram
@@ -53,33 +54,53 @@ class Resources(object):
         return Resources(-self.ram, -self.cores, -self.gpus)
 
     def __lt__(self, other):
-        return self.ram < other.ram and self.cores < other.cores and self.gpus < other.gpus
+        return (
+            self.ram < other.ram and self.cores < other.cores and self.gpus < other.gpus
+        )
 
     def __gt__(self, other):
-        return self.ram > other.ram and self.cores > other.cores and self.gpus > other.gpus
+        return (
+            self.ram > other.ram and self.cores > other.cores and self.gpus > other.gpus
+        )
 
     def __eq__(self, other):
-        return self.ram == other.ram and self.cores == other.cores and self.gpus == other.gpus
+        return (
+            self.ram == other.ram
+            and self.cores == other.cores
+            and self.gpus == other.gpus
+        )
 
     def __ge__(self, other):
-        return self.ram >= other.ram and self.cores >= other.cores and self.gpus >= other.gpus
+        return (
+            self.ram >= other.ram
+            and self.cores >= other.cores
+            and self.gpus >= other.gpus
+        )
 
     def __le__(self, other):
-        return self.ram <= other.ram and self.cores <= other.cores and self.gpus <= other.gpus
+        return (
+            self.ram <= other.ram
+            and self.cores <= other.cores
+            and self.gpus <= other.gpus
+        )
 
     def __str__(self):
-        return '[ram: {}, cores: {}, gpus {}]'.format(self.ram, self.cores, self.gpus)
+        return "[ram: {}, cores: {}, gpus {}]".format(self.ram, self.cores, self.gpus)
 
     def is_negative(self):
         return self.ram < 0 or self.cores < 0 or self.gpus < 0
 
     def exceeds(self, other):
-        return self.ram > other.ram or self.cores > other.cores or self.gpus > other.gpus
+        return (
+            self.ram > other.ram or self.cores > other.cores or self.gpus > other.gpus
+        )
 
     def to_dict(self):
-        return { Resources.CORES: self.cores,
-                 Resources.RAM: self.ram,
-                 Resources.GPUS: self.gpus }
+        return {
+            Resources.CORES: self.cores,
+            Resources.RAM: self.ram,
+            Resources.GPUS: self.gpus,
+        }
 
     @classmethod
     def from_dict(cls, d):
@@ -87,14 +108,18 @@ class Resources(object):
 
     @classmethod
     def from_job(cls, job):
-        if hasattr(job, 'builder'):
+        if hasattr(job, "builder"):
             return cls.from_dict(job.builder.resources)
         else:
             return Resources.EMPTY
 
     @classmethod
     def min(cls, rsc1, rsc2):
-        return Resources(min(rsc1.ram, rsc2.ram), min(rsc1.cores, rsc2.cores), min(rsc1.gpus, rsc2.gpus))
+        return Resources(
+            min(rsc1.ram, rsc2.ram),
+            min(rsc1.cores, rsc2.cores),
+            min(rsc1.gpus, rsc2.gpus),
+        )
 
 
 Resources.EMPTY = Resources(0, 0, 0)
@@ -122,7 +147,7 @@ class JobResourceQueue(object):
         :param job: A job to add to the queue
         """
         if job in self.jobs:
-            raise DuplicateJobException('Job already exists')
+            raise DuplicateJobException("Job already exists")
         if job:
             self.jobs[job] = Resources.from_job(job)
 
@@ -138,7 +163,11 @@ class JobResourceQueue(object):
         Produces a list of the jobs in the queue, ordered by self.priority (RAM or CORES) and ascending or descending
         :return:
         """
-        return sorted(self.jobs.items(), key=lambda item: getattr(item[1], self.priority), reverse=self.descending)
+        return sorted(
+            self.jobs.items(),
+            key=lambda item: getattr(item[1], self.priority),
+            reverse=self.descending,
+        )
 
     def dequeue(self, resource_limit):
         """
@@ -184,7 +213,9 @@ class ThreadPoolJobExecutor(JobExecutor):
         self.jrq = JobResourceQueue()
         self.exceptions = Queue()
         self.total_resources = Resources(total_ram, total_cores, total_gpus)
-        self.available_resources = Resources(total_ram, total_cores, total_gpus) # start with entire pool available
+        self.available_resources = Resources(
+            total_ram, total_cores, total_gpus
+        )  # start with entire pool available
         self.resources_lock = threading.Lock()
 
     def select_resources(self, request, runtime_context):
@@ -197,13 +228,23 @@ class ThreadPoolJobExecutor(JobExecutor):
         :param runtime_context: RuntimeContext, unused
         :return: dict of selected resources
         """
-        requested_min = Resources(request.get('ramMin'), request.get('coresMin'), request.get('cudaDeviceCountMin', 0))
-        requested_max = Resources(request.get('ramMax'), request.get('coresMax'), request.get('cudaDeviceCountMax', 0))
+        requested_min = Resources(
+            request.get("ramMin"),
+            request.get("coresMin"),
+            request.get("cudaDeviceCountMin", 0),
+        )
+        requested_max = Resources(
+            request.get("ramMax"),
+            request.get("coresMax"),
+            request.get("cudaDeviceCountMax", 0),
+        )
 
         if requested_min.exceeds(self.total_resources):
-            raise WorkflowException('Requested minimum resources {} exceed total available {}'.format(
-                requested_min, self.total_resources
-            ))
+            raise WorkflowException(
+                "Requested minimum resources {} exceed total available {}".format(
+                    requested_min, self.total_resources
+                )
+            )
 
         result = Resources.min(requested_max, self.total_resources)
         return result.to_dict()
@@ -250,17 +291,17 @@ class ThreadPoolJobExecutor(JobExecutor):
             # There's at least one exception, cancel all pending jobs
             # Note that cancel will only matter if there aren't enough available threads to start processing the job in
             # the first place. Once the function starts running it cannot be cancelled.
-            logger.error('Found a queued exception, canceling outstanding futures')
+            logger.error("Found a queued exception, canceling outstanding futures")
             for f in futures:
                 f.cancel()
             # Wait for outstanding futures to finish up so that cleanup can happen
-            logger.error('Waiting for canceled futures to finish')
+            logger.error("Waiting for canceled futures to finish")
             wait(futures, return_when=ALL_COMPLETED)
             exceptions = []
             # Dequeue the exceptions into a list.
             while not self.exceptions.empty():
                 exceptions.append(self.exceptions.get())
-            if len(exceptions) == 1: # single exception queued
+            if len(exceptions) == 1:  # single exception queued
                 try:
                     raise exceptions[0]
                 except (WorkflowException, ValidationException):
@@ -268,7 +309,7 @@ class ThreadPoolJobExecutor(JobExecutor):
                 except Exception as err:
                     logger.exception("Got workflow error")
                     raise WorkflowException(str(err)) from err
-            else: # multiple exceptions were queued, raise multiple
+            else:  # multiple exceptions were queued, raise multiple
                 raise WorkflowException(str(exceptions)) from exceptions[0]
 
     def raise_if_oversized(self, job):
@@ -278,19 +319,28 @@ class ThreadPoolJobExecutor(JobExecutor):
         """
         rsc = Resources.from_job(job)
         if rsc.exceeds(self.total_resources):
-            raise OversizedJobException('Job {} resources {} exceed total resources {}'.
-                                        format(job, rsc, self.total_resources))
+            raise OversizedJobException(
+                "Job {} resources {} exceed total resources {}".format(
+                    job, rsc, self.total_resources
+                )
+            )
 
     def _account(self, rsc):
         with self.resources_lock:
             self.available_resources += rsc
             # Check if overallocated
             if self.available_resources.is_negative():
-                raise InconsistentResourcesException('Available resources are negative: {}'.
-                                                     format(self.available_resources))
+                raise InconsistentResourcesException(
+                    "Available resources are negative: {}".format(
+                        self.available_resources
+                    )
+                )
             elif self.available_resources.exceeds(self.total_resources):
-                raise InconsistentResourcesException('Available resources exceeds total. Available: {}, Total: {}'.
-                                                     format(self.available_resources, self.total_resources))
+                raise InconsistentResourcesException(
+                    "Available resources exceeds total. Available: {}, Total: {}".format(
+                        self.available_resources, self.total_resources
+                    )
+                )
 
     def allocate(self, rsc, logger):
         """
@@ -298,7 +348,9 @@ class ThreadPoolJobExecutor(JobExecutor):
         :param rsc: A Resources object to reserve from the total.
         :param logger: logger where messages shall be logged
         """
-        logger.debug('allocate {} from available {}'.format(rsc, self.available_resources))
+        logger.debug(
+            "allocate {} from available {}".format(rsc, self.available_resources)
+        )
         self._account(-rsc)
 
     def restore(self, rsc, logger):
@@ -307,7 +359,7 @@ class ThreadPoolJobExecutor(JobExecutor):
         :param rsc: A Resources object to restore to the total
         :param logger: logger where messages shall be logged
         """
-        logger.debug('restore {} to available {}'.format(rsc, self.available_resources))
+        logger.debug("restore {} to available {}".format(rsc, self.available_resources))
         self._account(rsc)
 
     def start_queued_jobs(self, pool_executor, logger, runtime_context):
@@ -320,7 +372,9 @@ class ThreadPoolJobExecutor(JobExecutor):
         :param runtime_context: cwltool RuntimeContext: to provide to the job
         :return: set: futures that were submitted on this invocation
         """
-        runnable_jobs = self.jrq.dequeue(self.available_resources)  # Removes jobs from the queue
+        runnable_jobs = self.jrq.dequeue(
+            self.available_resources
+        )  # Removes jobs from the queue
         submitted_futures = set()
         for job, rsc in runnable_jobs.items():
             if runtime_context.builder is not None:
@@ -344,12 +398,14 @@ class ThreadPoolJobExecutor(JobExecutor):
         :param logger: logger where messages shall be logged
         :return: The set of futures that is not yet done
         """
-        logger.debug('wait_for_completion with {} futures'.format(len(futures)))
+        logger.debug("wait_for_completion with {} futures".format(len(futures)))
         wait_results = wait(futures, return_when=FIRST_COMPLETED)
         # wait returns a NamedTuple of done and not_done.
         return wait_results.not_done
 
-    def enqueue_jobs_from_iterator(self, job_iterator, logger, runtime_context, pool_executor):
+    def enqueue_jobs_from_iterator(
+        self, job_iterator, logger, runtime_context, pool_executor
+    ):
         """
         Phase 1: Iterate over jobs, and queue them for execution. When the iterator returns None, that indicates
         progress is blocked until earlier jobs complete. At that point, this method starts jobs from the
@@ -374,7 +430,9 @@ class ThreadPoolJobExecutor(JobExecutor):
                         self.jrq.enqueue(job)
                     else:
                         # job is None. More to come, but depend on queued jobs completing, so start what we can
-                        submitted = self.start_queued_jobs(pool_executor, logger, runtime_context)
+                        submitted = self.start_queued_jobs(
+                            pool_executor, logger, runtime_context
+                        )
                         futures.update(submitted)
                 except StopIteration:
                     # No more jobs to queue.
@@ -398,7 +456,9 @@ class ThreadPoolJobExecutor(JobExecutor):
         while not finished:
             with runtime_context.workflow_eval_lock:
                 # Taking the lock to work the queue
-                submitted = self.start_queued_jobs(pool_executor, logger, runtime_context)  # submits jobs as futures
+                submitted = self.start_queued_jobs(
+                    pool_executor, logger, runtime_context
+                )  # submits jobs as futures
                 futures.update(submitted)
             # wait_for_completion must not have the lock, since jobs finishing will acquire it to provide their result
             futures = self.wait_for_completion(futures, logger)
@@ -417,14 +477,26 @@ class ThreadPoolJobExecutor(JobExecutor):
         :param runtime_context: cwltool RuntimeContext: to provide to the job
         :return: None
         """
-        logger.debug('Starting ThreadPoolJobExecutor.run_jobs: total_resources={}, max_workers={}'.format(
-            self.total_resources, self.max_workers))
+        logger.debug(
+            "Starting ThreadPoolJobExecutor.run_jobs: total_resources={}, max_workers={}".format(
+                self.total_resources, self.max_workers
+            )
+        )
         if runtime_context.workflow_eval_lock is None:
-            raise WorkflowException("runtimeContext.workflow_eval_lock must not be None")
+            raise WorkflowException(
+                "runtimeContext.workflow_eval_lock must not be None"
+            )
         # Wrap in an Executor context. This ensures that the executor waits for tasks to finish before shutting down
-        job_iterator = process.job(job_order_object, self.output_callback, runtime_context)
+        job_iterator = process.job(
+            job_order_object, self.output_callback, runtime_context
+        )
         with ThreadPoolExecutor(max_workers=self.max_workers) as pool_executor:
-            futures = self.enqueue_jobs_from_iterator(job_iterator, logger, runtime_context, pool_executor)
+            futures = self.enqueue_jobs_from_iterator(
+                job_iterator, logger, runtime_context, pool_executor
+            )
             self.drain_queue(logger, runtime_context, pool_executor, futures)
-        logger.debug('Finishing ThreadPoolExecutor.run_jobs: total_resources={}, available_resources={}'.format(
-            self.total_resources, self.available_resources))
+        logger.debug(
+            "Finishing ThreadPoolExecutor.run_jobs: total_resources={}, available_resources={}".format(
+                self.total_resources, self.available_resources
+            )
+        )

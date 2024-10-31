@@ -1,7 +1,9 @@
+import logging
+
 from cwltool.command_line_tool import CommandLineTool
 from cwltool.workflow import default_make_tool
-from calrissian.job import CalrissianCommandLineJob
-import logging
+
+from jarvissian.job import CalrissianCommandLineJob
 
 log = logging.getLogger("calrissian.tool")
 
@@ -11,7 +13,6 @@ class CalrissianCommandLineToolException(BaseException):
 
 
 class CalrissianCommandLineTool(CommandLineTool):
-
     def make_job_runner(self, runtimeContext):
         """
         Construct a callable that can run a CommandLineTool
@@ -34,19 +35,22 @@ class CalrissianCommandLineTool(CommandLineTool):
         # See https://github.com/common-workflow-language/cwltool/blob/a94d75178c24ce77b59403fb8276af9ad1998929/cwltool/command_line_tool.py#L243
 
         if not runtimeContext.use_container:
-            raise CalrissianCommandLineToolException('Unable to create a CalrissianCommandLineTool - use_container is disabled')
-        docker_requirement, _ = self.get_requirement('DockerRequirement')
+            raise CalrissianCommandLineToolException(
+                "Unable to create a CalrissianCommandLineTool - use_container is disabled"
+            )
+        docker_requirement, _ = self.get_requirement("DockerRequirement")
         if not docker_requirement:
             # no docker requirement specified, inject one
             default_container = runtimeContext.find_default_container(self)
             if not default_container:
-                raise CalrissianCommandLineToolException('Unable to create a CalrissianCommandLineTool - '
-                                              'tool has no DockerRequirement and no default_container specified')
-            self.requirements.insert(0, {
-                'class': 'DockerRequirement',
-                'dockerPull': default_container
-            })
-        
+                raise CalrissianCommandLineToolException(
+                    "Unable to create a CalrissianCommandLineTool - "
+                    "tool has no DockerRequirement and no default_container specified"
+                )
+            self.requirements.insert(
+                0, {"class": "DockerRequirement", "dockerPull": default_container}
+            )
+
         return CalrissianCommandLineJob
 
 
@@ -62,4 +66,3 @@ def calrissian_make_tool(spec, loadingContext):
         return CalrissianCommandLineTool(spec, loadingContext)
     else:
         return default_make_tool(spec, loadingContext)
-
